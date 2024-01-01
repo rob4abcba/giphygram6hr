@@ -1,5 +1,5 @@
 // service worker version
-const version = "1.0";
+const version = "1.0"; // Don't forget to surround with quotes to make sure the version is a string.
 
 // static cache - app shell
 const appAssets = [
