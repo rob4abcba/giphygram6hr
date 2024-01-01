@@ -31,3 +31,30 @@ self.addEventListener("activate", (e) => {
   });
   e.waitUntil(cleaned);
 });
+
+// static cache strategy = cache-first with fetch from network as the fallback option
+const staticCache = (req) => {
+  return caches.match(req).then((cachedRes) => {
+    // return cached response if found
+    if (cachedRes) return cachedRes;
+
+    // fallback to network
+    return fetch(req).then((networkRes) => {
+      // update cache with the new response
+      caches
+        .open(`static-${version}`)
+        .then((cache) => cache.put(req, networkRes));
+
+      // return clone of network response
+      return networkRes.clone();
+    });
+  });
+};
+
+// service worker fetch
+self.addEventListener("fetch", (e) => {
+  // app shell
+  if (e.request.url.match(location.origin)) {
+    e.respondWith(staticCache(e.request));
+  }
+});
