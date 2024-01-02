@@ -1,5 +1,5 @@
 // service worker version
-const version = "1.0"; // Don't forget to surround with quotes to make sure the version is a string.
+const version = "1.1"; // Don't forget to surround with quotes to make sure the version is a string.
 
 // static cache - app shell
 const appAssets = [
@@ -32,8 +32,8 @@ self.addEventListener("activate", (e) => {
   e.waitUntil(cleaned);
 });
 
-// static cache strategy = cache-first with fetch from network as the fallback option
-const staticCache = (req) => {
+// static cache strategy = cache-first then fetch from network as the fallback option
+const staticCache = (req, cachename = `static-${version}`) => {
   return caches.match(req).then((cachedRes) => {
     // return cached response if found
     if (cachedRes) return cachedRes;
@@ -41,9 +41,7 @@ const staticCache = (req) => {
     // fallback to network
     return fetch(req).then((networkRes) => {
       // update cache with the new response
-      caches
-        .open(`static-${version}`)
-        .then((cache) => cache.put(req, networkRes));
+      caches.open(cachename).then((cache) => cache.put(req, networkRes));
 
       // return clone of network response
       return networkRes.clone();
@@ -51,10 +49,41 @@ const staticCache = (req) => {
   });
 };
 
+// dynamice cache strategy = network-first then cache as the fallback option
+const fallbackCache = (req) => {
+  // try network first
+  return (
+    fetch(req)
+      .then((networkRes) => {
+        // check res OK, else go to cache
+        if (!networkRes.ok) throw "Fetch error";
+
+        // update cache
+        caches
+          .open(`static-${version}`)
+          .then((cache) => cache.put(req, networkRes));
+
+        // return clone of network response
+        return networkRes.clone();
+      })
+
+      // if fetch fails, update with cache
+      .catch((err) => caches.match(req))
+  );
+};
+
 // service worker fetch
 self.addEventListener("fetch", (e) => {
   // app shell
   if (e.request.url.match(location.origin)) {
     e.respondWith(staticCache(e.request));
+
+    // giphy API
+  } else if (e.request.url.match("api.giphy.com/v1/gifs/trending")) {
+    e.respondWith(fallbackCache(e.request));
+
+    // giphy media
+  } else if (e.request.url.match("giphy.com/media")) {
+    e.respondWith(staticCache(e.request, "giphy"));
   }
 });
